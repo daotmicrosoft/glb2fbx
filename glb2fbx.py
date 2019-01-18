@@ -3,7 +3,7 @@
 
 import docker
 import os
-
+import tempfile
 
 class Glb2Fbx:
 
@@ -12,18 +12,14 @@ class Glb2Fbx:
             input_file,
             output_file,
             blender_script="blender_glb2fbx.py",
-            image="daotmicrosoft/blender:2.8_ubuntu",
-            container_input_dir="/app/tmp",
-            container_output_dir="/app/tmp1",
-            container_work_dir="/app"):
+            container_dir="/app/tmp",
+            image="daotmicrosoft/blender:2.8_ubuntu"):
 
         self.input_file = input_file
         self.output_file = output_file
         self.blender_script = os.path.abspath(blender_script)
         self.image = image
-        self.container_input_dir = container_input_dir
-        self.container_output_dir = container_output_dir
-        self.container_work_dir = container_work_dir
+        self.container_dir = container_dir
 
         self.client = docker.from_env()
 
@@ -34,55 +30,51 @@ class Glb2Fbx:
         Replace the input and output dirs with
         container_input/output_dir
         """
-        self._volumes = {}
+        # make a tmp dir, and link all files in that dir
+        with tempfile.TemporaryDirectory() as self._tmp:
+            self._tmp = tempfile.TemporaryDirectory()
+            self._volume = {}
+            self._volume[self.container_dir] = {'bind': self._tmp, 'mode': 'rw'}
 
-        input_file_name = os.path.basename(self.input_file)
-        input_file_dir_name = os.path.dirname(self.input_file)
-        self.input_arg = os.path.join(
-            self.container_input_dir, input_file_name)
-        self._volumes[input_file_dir_name] = {
-            'bind': self.container_input_dir,
-            'mode': 'rw'}
+            #link the input_file
+            input_file_linked_path = os.path.join(self._tmp, "input_file")
+            os.symlink(self.input_file, input_file_linked_path)
 
-        print (self._volumes)
+            #link the directory the container writes to
+            output_dir_linked_path = os.path.join(self._tmp, "output_dir")
+            os.symlink(os.path.dirname(self.output_file), output_dir_linked_path)
 
-        output_file_name = os.path.basename(self.output_file)
-        output_file_dir_name = os.path.dirname(self.output_file)
-        self.output_arg = os.path.join(
-            self.container_output_dir, output_file_name)
-        self._volumes[output_file_dir_name] = {
-            'bind': self.container_output_dir,
-            'mode': 'rw'}
+            #link the script
+            blender_script_linked_path = os.path.join(self._tmp, "script")
+            os.symlink(self.blender_script, blender_script_linked_path)
 
-        print (self._volumes)
+            #now each of the input files are symbolically one dir, which is mapped
+            #to the container
 
-        blender_script_file_name = os.path.basename(self.blender_script)
-        blender_script_dir_name = os.path.dirname(self.blender_script)
-        self.script_arg = os.path.join(
-            self.container_work_dir, blender_script_file_name)
-        self._volumes[blender_script_dir_name] = {
-            'bind': self.container_work_dir,
-            'mode': 'rw'}
+            #next, we replace the local tmp path with the container path for each
+            #file
+            self.input_arg = os.path.join(self.container_dir, os.path.basename(input_file_linked_path))
+            self.output_arg = os.path.join(self.container_dir, os.path.basename(output_dir_linked_path))
+            self.script_arg = os.path.join(self.container_dir, os.path.basename(blender_script_linked_path))
 
-        print (self._volumes)
+        
 
-        print (len(self._volumes.keys()))
-        for k in self._volumes.keys():
-            print ("---Mapping %s to %s"%(k, self._volumes[k]['bind']))
 
     def __call__(self):
 
         cmd = "./blender_app/blender -b -P %s -- %s %s" % (
             self.script_arg, self.input_arg, self.output_arg)
 
+        self._tmp.cleanup()
         print("Executing: %s in container." % cmd)
 
+        """
         _log = self.client.containers.run(
             self.image,
             cmd,
             stream=True,
             detach=False,
-            volumes=self._volumes)
+            volumes=self._volume)
 
         for line in _log:
             print(format_blender_log(line))
@@ -90,6 +82,7 @@ class Glb2Fbx:
         print("Wrote: %s" % self.output_file)
 
         return self.output_file
+        """
 
 
 def format_blender_log(line):
