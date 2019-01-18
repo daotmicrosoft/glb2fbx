@@ -3,7 +3,6 @@
 
 import docker
 import os
-import sys
 
 
 class Glb2Fbx:
@@ -45,6 +44,8 @@ class Glb2Fbx:
             'bind': self.container_input_dir,
             'mode': 'rw'}
 
+        print (self._volumes)
+
         output_file_name = os.path.basename(self.output_file)
         output_file_dir_name = os.path.dirname(self.output_file)
         self.output_arg = os.path.join(
@@ -53,12 +54,21 @@ class Glb2Fbx:
             'bind': self.container_output_dir,
             'mode': 'rw'}
 
+        print (self._volumes)
+
         blender_script_file_name = os.path.basename(self.blender_script)
+        blender_script_dir_name = os.path.dirname(self.blender_script)
         self.script_arg = os.path.join(
             self.container_work_dir, blender_script_file_name)
-        self._volumes[blender_script_file_name] = {
+        self._volumes[blender_script_dir_name] = {
             'bind': self.container_work_dir,
             'mode': 'rw'}
+
+        print (self._volumes)
+
+        print (len(self._volumes.keys()))
+        for k in self._volumes.keys():
+            print ("---Mapping %s to %s"%(k, self._volumes[k]['bind']))
 
     def __call__(self):
 
@@ -96,8 +106,8 @@ import argparse
 
 
 def ends_with_ext(_path, test_ext):
-    ext = os.path.splitext(args.output)[1]
-    return ext.lower() is test_ext.lower()
+    ext = os.path.splitext(_path)[1]
+    return ext.lower() == test_ext.lower()
 
 
 def _conform_path(_path):
@@ -106,13 +116,12 @@ def _conform_path(_path):
 
 
 def check_input_flag(args):
-    if not os.path.isfile(
-        args.input) and (
-        ends_with_ext(
-            args.input,
-            ".glb") or ends_with_ext(
-                args.input,
-            ".gltf")):
+    args.input = os.path.abspath(args.input)
+    print ('CHECKINT %s'%(os.path.isfile(args.input)))
+
+    if not (os.path.isfile(args.input) and (ends_with_ext(args.input, ".glb") or \
+        ends_with_ext(args.input, ".gltf"))):
+        
         raise ValueError("Must pass in a valid path to a .glb or .gltf file.")
 
     args.input = _conform_path(args.input)
@@ -121,7 +130,9 @@ def check_input_flag(args):
 
 def check_output_flag(args):
     input_file_name_no_ext = os.path.splitext(os.path.basename(args.input))[0]
+    
     if args.output:
+        args.output = os.path.abspath(args.output)
         _base_dir = os.path.dirname(args.output)
         if not os.path.isdir(_base_dir):
             raise ValueError(
@@ -142,14 +153,12 @@ def check_output_flag(args):
             # valid dir, so let's construct the output file name.
 
             args.output = os.path.join(
-                args.output, input_file_name_no_ext, ".fbx")
+                args.output, input_file_name_no_ext+".fbx")
 
     else:
         args.output = os.path.join(
             os.path.dirname(
-                args.input),
-            input_file_name_no_ext,
-            ".fbx")
+                args.input), input_file_name_no_ext+".fbx")
 
     args.output = _conform_path(args.output)
 
@@ -173,8 +182,9 @@ if __name__ == "__main__":
                         help="Path and file name to glb or gltf file to convert. Example: ../mydir/myfile.glb")
 
     parser.add_argument("--output", "-o", help="Full path and file name to glb or gltf file to convert. Example: ../mydir/myfile.fbx, or ../mydir")
-    args = parser.parse_args()
-    args = _parse_args(args)
+    args = _parse_args(parser.parse_args())
+    print (args)
 
-    cmd_obj = Glb2Fbx(args.input, args.output)
-    cmd_obj()
+    #do the business
+    Glb2Fbx(args.input, args.output)()
+
