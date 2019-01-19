@@ -4,6 +4,7 @@
 import docker
 import os
 import tempfile
+import shutil
 
 class Glb2Fbx:
 
@@ -31,31 +32,46 @@ class Glb2Fbx:
         container_input/output_dir
         """
         # make a tmp dir, and link all files in that dir
-        with tempfile.TemporaryDirectory() as self._tmp:
-            self._tmp = tempfile.TemporaryDirectory()
-            self._volume = {}
-            self._volume[self.container_dir] = {'bind': self._tmp, 'mode': 'rw'}
+        self._tmp = tempfile.mkdtemp()
+        self._volume = {}
+        self._volume[self._tmp] = {'bind': self.container_dir, 'mode': 'rw'}
 
-            #link the input_file
-            input_file_linked_path = os.path.join(self._tmp, "input_file")
+        #link the input_file
+        input_file_linked_path = os.path.join(self._tmp, "input_file.glb")
+        print ("trying to link %s to %s"%(self.input_file, input_file_linked_path))
+        try:
             os.symlink(self.input_file, input_file_linked_path)
+        except:
+            print ("Windows doesn't allow sym links. Copying file %s to %s"%(self.input_file, input_file_linked_path))
+            shutil.copyfile(self.input_file, input_file_linked_path)
 
-            #link the directory the container writes to
-            output_dir_linked_path = os.path.join(self._tmp, "output_dir")
+
+        #link the directory the container writes to
+        output_dir_linked_path = os.path.join(self._tmp, "output_dir")
+        try:
             os.symlink(os.path.dirname(self.output_file), output_dir_linked_path)
+            self.copy_output = False
+        except:
+            print ("Windows doesn't allow sym links. Will copy output out of container.")
+            output_dir_linked_path = self.container_dir
+            self.copy_output = True
 
-            #link the script
-            blender_script_linked_path = os.path.join(self._tmp, "script")
+        #link the script
+        blender_script_linked_path = os.path.join(self._tmp, "script.py")
+        try:
             os.symlink(self.blender_script, blender_script_linked_path)
+        except:
+            print ("Windows doesn't allow sym links. Copying file %s to %s"%(self.blender_script, blender_script_linked_path))
+            shutil.copyfile(self.blender_script, blender_script_linked_path)
 
-            #now each of the input files are symbolically one dir, which is mapped
-            #to the container
+        #now each of the input files are symbolically one dir, which is mapped
+        #to the container
 
-            #next, we replace the local tmp path with the container path for each
-            #file
-            self.input_arg = os.path.join(self.container_dir, os.path.basename(input_file_linked_path))
-            self.output_arg = os.path.join(self.container_dir, os.path.basename(output_dir_linked_path))
-            self.script_arg = os.path.join(self.container_dir, os.path.basename(blender_script_linked_path))
+        #next, we replace the local tmp path with the container path for each
+        #file
+        self.input_arg = unixify_path(os.path.join(self.container_dir, os.path.basename(input_file_linked_path)))
+        self.output_arg = unixify_path(os.path.join(output_dir_linked_path, os.path.basename(self.output_file)))
+        self.script_arg = unixify_path(os.path.join(self.container_dir, os.path.basename(blender_script_linked_path)))
 
         
 
@@ -65,10 +81,11 @@ class Glb2Fbx:
         cmd = "./blender_app/blender -b -P %s -- %s %s" % (
             self.script_arg, self.input_arg, self.output_arg)
 
-        self._tmp.cleanup()
+
+        
         print("Executing: %s in container." % cmd)
 
-        """
+
         _log = self.client.containers.run(
             self.image,
             cmd,
@@ -81,8 +98,14 @@ class Glb2Fbx:
 
         print("Wrote: %s" % self.output_file)
 
+        if self.copy_output:
+            print ("----------> Copying %s to %s"%(self.output_arg, self.output_file))
+            src = os.path.join(self._tmp, os.path.basename(self.output_file))
+            shutil.copyfile(src,self.output_file)
+
+        print ("Cleaning up.")
+        shutil.rmtree(self._tmp)
         return self.output_file
-        """
 
 
 def format_blender_log(line):
@@ -179,5 +202,7 @@ if __name__ == "__main__":
     print (args)
 
     #do the business
+    print ("Converting %s to %s"%(args.input, args.output))
     Glb2Fbx(args.input, args.output)()
+
 
