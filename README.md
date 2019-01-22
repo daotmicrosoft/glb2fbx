@@ -1,5 +1,5 @@
 # glb2fbx
-Convert gltf or glb files to fbx using a blender 2.8 docker image.
+Convert gltf or glb file to fbx using a blender 2.8 docker image.
 
 This tool uses Docker to run Blender2.8. Inside blender, the .glb or .gltf model is imported then exported as an .fbx file. Once complete, the container is shut down.
 
