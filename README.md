@@ -14,7 +14,7 @@ Currently does not support materials and textures.
 ## Usage
 ### Examples
 - python glb2fbx.py Disc.glb -o Disc.fbx 
-Will look for Disc.glb in the current directory, and write Disc.fbx into the current directory.
+\n Will look for Disc.glb in the current directory, and write Disc.fbx into the current directory.
 
 - python glb2fbx.py /Users/me/myfile.gl
-Will look for myfile.glb in /Users/me/. and write /Users/me/myfile.fbx.
+\n Will look for myfile.glb in /Users/me/. and write /Users/me/myfile.fbx.
