@@ -10,6 +10,7 @@ Currently does not support materials and textures.
 ## Requirements
 - Docker client. If you don't have Docker running on your mahcine, install it by going to [https://docs.docker.com/](https://docs.docker.com/)
 - Python 3.7+
+- docker python module. To install:  **pip install --upgrade docker**
 
 ## Usage
 ### Examples
